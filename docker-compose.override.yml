@@ -1,0 +1,19 @@
+---
+version: '2.1'
+services:
+  mongo:
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: cryptoanalyzer!
+  
+  mongo-express:
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: cryptoanalyzer!
+ 
+  kafka-connect-mongodb:
+    environment:
+      CONNECTOR_CONNECT_MONGO_USERNAME: connect
+      CONNECTOR_CONNECT_MONGO_PASSWORD: cryptoanalyzer!
+    volumes:
+      - ./tmp/:/tmp/crypto/

@@ -1,0 +1,396 @@
+---
+version: '2.1'
+services:
+  zookeeper-1:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+      KAFKA_JMX_PORT: 39999
+      KAFKA_JMX_HOSTNAME: zookeeper-1
+    expose:
+      - 2181
+    restart: unless-stopped
+    networks:
+      - kafka-net
+  
+
+  zookeeper-2:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 2
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+      KAFKA_JMX_PORT: 39999
+      KAFKA_JMX_HOSTNAME: zookeeper-2
+    expose:
+      - 2181
+    restart: unless-stopped
+    networks:
+      - kafka-net
+  
+
+  zookeeper-3:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 3
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+      KAFKA_JMX_PORT: 39999
+      KAFKA_JMX_HOSTNAME: zookeeper-3
+    expose:
+      - 2181
+    restart: unless-stopped
+    networks:
+      - kafka-net
+  
+
+  kafka-1:
+    image: confluentinc/cp-kafka:latest
+    restart: unless-stopped
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092,PLAINTEXT_HOST://localhost:19092
+      KAFKA_JMX_PORT: 39999
+      KAFKA_JMX_HOSTNAME: kafka-1
+    expose:
+      - 9092
+    networks:
+      - kafka-net
+  
+    
+
+  kafka-2:
+    image: confluentinc/cp-kafka:latest
+    restart: unless-stopped
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_JMX_PORT: 39999
+      KAFKA_JMX_HOSTNAME: kafka-2
+    expose:
+      - 9092
+    networks:
+      - kafka-net
+  
+    
+
+  kafka-3:
+    image: confluentinc/cp-kafka:latest
+    restart: unless-stopped
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9092,PLAINTEXT_HOST://localhost:39092
+      KAFKA_JMX_PORT: 39999
+      KAFKA_JMX_HOSTNAME: kafka-3
+    expose:
+      - 9092
+    networks:
+      - kafka-net
+  
+    
+  kafka-schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    restart: unless-stopped
+    #ports:
+    #  - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    networks:
+      - kafka-net
+  
+    
+  kafka-schema-registry-ui:
+    image: landoop/schema-registry-ui:latest
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      SCHEMAREGISTRY_URL: http://kafka-schema-registry:8081/
+      PROXY: "true"
+    depends_on:
+      - kafka-schema-registry
+    networks:
+      - kafka-net
+  
+
+  kafka-rest-proxy:
+    image: confluentinc/cp-kafka-rest:latest
+    restart: unless-stopped
+    #ports:
+    #  - "8082:8082"
+    environment:
+      KAFKA_REST_ZOOKEEPER_CONNECT: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      KAFKA_REST_LISTENERS: http://0.0.0.0:8082/
+      KAFKA_REST_SCHEMA_REGISTRY_URL: http://kafka-schema-registry:8081/
+      KAFKA_REST_HOST_NAME: kafka-rest-proxy
+      KAFKA_REST_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+      - kafka-1
+      - kafka-2
+      - kafka-3
+      - kafka-schema-registry
+    networks:
+      - kafka-net
+  
+  
+  kafka-topics-ui:
+    image: landoop/kafka-topics-ui:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_REST_PROXY_URL: "http://kafka-rest-proxy:8082/"
+      PROXY: "true"
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+      - kafka-1
+      - kafka-2
+      - kafka-3
+      - kafka-schema-registry
+      - kafka-rest-proxy
+    networks:
+      - kafka-net
+      
+      
+  kafka-manager:
+    image: sheepkiller/kafka-manager:latest
+    ports:
+      - "9000:9000"
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    environment:
+      ZK_HOSTS: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      APPLICATION_SECRET: CryptoDataAnalyzer
+      JMX_PORT: 39999
+      KM_ARGS: -Djava.net.preferIPv4Stack=true
+    networks:
+      - kafka-net
+
+  zoonavigator-web:
+    image: elkozmon/zoonavigator-web:latest
+    restart: unless-stopped
+    ports:
+     - "8004:8000"
+    environment:
+      API_HOST: "zoonavigator-api"
+      API_PORT: 9000
+      AUTO_CONNECT_CONNECTION_STRING: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+    depends_on:
+     - zoonavigator-api
+    networks:
+      - kafka-net
+
+  zoonavigator-api:
+    image: elkozmon/zoonavigator-api:latest
+    environment:
+      API_HTTP_PORT: 9000
+    restart: unless-stopped
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    networks:
+      - kafka-net
+  
+    
+
+  tickerRequestConsumer-1:
+    image: kewlin/kafka-python-base
+    #restart: unless-stopped
+    build: 
+      context: ./kafka-python-base
+      args:
+        ALPINE_VERSION: 3.7
+    entrypoint: python 
+    command: /usr/local/bin/tickerRequestConsumer.py
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    volumes:
+      - ./src:/usr/local/bin
+    environment:
+      BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+    logging:
+      options:
+        max-size: 100m
+    networks:
+      - kafka-net
+  
+  
+  tickerRequestProducer-1:
+    image: kewlin/kafka-python-base
+    #restart: unless-stopped
+    build: 
+      context: ./kafka-python-base
+      args:
+        ALPINE_VERSION: 3.7
+    entrypoint: python 
+    command: /usr/local/bin/tickerRequestProducer.py
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    volumes:
+      - ./src:/usr/local/bin
+    environment:
+      BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+    logging:
+      options:
+        max-size: 100m
+    networks:
+      - kafka-net
+  
+  mongo:
+    image: mongo
+    restart: unless-stopped
+    expose:
+      - 27017
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: cryptoanalyzer!
+      MONGO_INITDB_DATABASE: MarketData
+    mem_limit: 10G
+    command: --wiredTigerCacheSizeGB=4
+    volumes:
+      - ./mongo-init:/docker-entrypoint-initdb.d
+    networks:
+      - kafka-net
+  
+
+  mongo-express:
+    image: mongo-express
+    restart: unless-stopped
+    ports:
+      - 8083:8081
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: cryptoanalyzer!
+    depends_on:
+      - mongo
+    networks:
+      - kafka-net
+
+  kafka-connect-mongodb:
+    image: datamountaineer/kafka-connect-mongodb:latest
+    restart: unless-stopped
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: kafka-connect-mongodb
+      CONNECT_CONFIG_STORAGE_TOPIC: docker-connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: docker-connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
+      #CONNECT_KEY_CONVERTER: org.apache.kafka.connect.converters.ByteArrayConverter
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      #CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.converters.ByteArrayConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect-mongodb"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+      CONNECT_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+
+      CONNECTOR_CONNECTOR_CLASS: "com.datamountaineer.streamreactor.connect.mongodb.sink.MongoSinkConnector" 
+      CONNECTOR_NAME: "kafka-connect-mongodb" 
+      CONNECTOR_TASKS_MAX: 100 
+      CONNECTOR_CONNECT_MONGO_KCQL: >
+        INSERT INTO StatusMarketData SELECT * FROM StatusMarketData;
+        INSERT INTO ControlRequestMarketData SELECT * FROM ControlRequestMarketData;
+        INSERT INTO RequestMarketData SELECT * FROM RequestMarketData;
+        INSERT INTO ResultMarketData SELECT * FROM ResultMarketData" 
+      CONNECTOR_CONNECT_MONGO_DB: "MarketData"
+      CONNECTOR_CONNECT_MONGO_CONNECTION: "mongodb://mongo:27017"
+      CONNECTOR_CONNECT_MONGO_USERNAME: connect
+      CONNECTOR_CONNECT_MONGO_PASSWORD: cryptoanalyzer!
+      CONNECTOR_CONNECT_MONGO_BATCH_SIZE: 10 
+      CONNECTOR_CONNECT_MONGO_ERROR_POLICY: retry
+      CONNECTOR_CONNECT_MONGO_MAX_RETIRES: 10
+      CONNECTOR_CONNECT_MONGO_RETRY_INTERVAL: 60000
+      CONNECTOR_TOPICS: "StatusMarketData,ControlRequestMarketData,RequestMarketData,ResultMarketData" 
+  
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+      - kafka-1
+      - kafka-2
+      - kafka-3
+      - kafka-schema-registry
+      - kafka-rest-proxy
+      - mongo
+    networks:
+      - kafka-net
+
+  kafka-connect-ui:
+    image: landoop/kafka-connect-ui:latest
+    restart: unless-stopped
+    ports:
+      - "8003:8000"
+    environment:
+      CONNECT_URL: "http://kafka-connect-mongodb:8083/"
+      PROXY: "true"
+    depends_on:
+      - kafka-connect-mongodb
+    networks:
+      - kafka-net
+
+  
+networks:
+  kafka-net:
+    name: kafka-net

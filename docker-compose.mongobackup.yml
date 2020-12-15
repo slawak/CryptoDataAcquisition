@@ -1,0 +1,22 @@
+version: '2.1'
+services:
+  mongo-backup:
+    image: mongo
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: cryptoanalyzer!
+      MONGO_INITDB_DATABASE: MarketData
+    mem_limit: 2G
+    command: --wiredTigerCacheSizeGB=1
+    volumes:
+      - ./mongo-init:/docker-entrypoint-initdb.d
+      - mongodb-backup:/data/db
+
+volumes:
+  mongodb-backup:
+    external:
+      name: eebf80733c795d027a3ead92195f1739eaa3e635e29c0b94f68e98fcb79c4102
+      #name: 75726de91c8b104aaa77eaf666ee4bea89b62c4b3c28ff920182dedf749139b3

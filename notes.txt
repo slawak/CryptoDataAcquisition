@@ -1,0 +1,158 @@
+# packages 
+
+conda install -c activisiongamescience confluent-kafka
+pip install ccxt
+
+# start kafka cluster
+
+docker-compose up -d
+
+docker-compose -f docker-compose-only-kafka.yml up -d
+
+docker-compose ps
+
+# Delete topics
+
+docker run \
+  --network="kafka-net" \
+  --rm \
+  confluentinc/cp-kafka:latest \
+  kafka-topics --delete --topic RequestMarketData --zookeeper zookeeper-1:2181
+
+docker run \
+  --network="kafka-net" \
+  --rm \
+  confluentinc/cp-kafka:latest \
+  kafka-topics --delete --topic ResultMarketData --zookeeper zookeeper-1:2181
+
+
+# Create
+
+docker run \
+  --network="kafka-net" \
+  --rm \
+  confluentinc/cp-kafka:latest \
+  kafka-topics --create --topic RequestMarketData --partitions 100 --replication-factor 3 --if-not-exists --zookeeper zookeeper-1:2181
+
+docker run \
+  --network="kafka-net" \
+  --rm \
+  confluentinc/cp-kafka:latest \
+  kafka-topics --create --topic ResultMarketData --partitions 100 --replication-factor 3 --if-not-exists --zookeeper zookeeper-1:2181
+
+# Describe
+
+docker run \
+    --network="kafka-net" \
+    --rm \
+    confluentinc/cp-kafka:latest \
+    kafka-topics --describe --topic RequestMarketData --zookeeper zookeeper-1:2181
+
+docker run \
+    --network="kafka-net" \
+    --rm \
+    confluentinc/cp-kafka:latest \
+    kafka-topics --describe --topic ResultMarketData --zookeeper zookeeper-1:2181
+
+# currencies
+
+'["USD", "EUR", "BTC", "ETH",
+"XRP", "IOTA", "NEO", "LTC", "BCH", "ADA", "XLM", "TRX", "XEM", "VEN", "ONT", "BNB"]'
+
+# marketdata
+
+./tickerRequest.sh start -d 86400 -c load_markets -a '{"reload":True}'
+./tickerRequest.sh start -d 86400 -c load_fees -a '{}'
+./tickerRequest.sh start -d 86400 -c fetch_fees -a '{}'
+
+
+# orderbook
+
+./tickerRequest.sh start -d 30 -c fetch_order_book -s '["USD", "EUR", "BTC", "ETH", \
+"XRP", "IOTA", "NEO", "LTC", "BCH", "ADA", "XLM", "TRX", "XEM", "VEN", "ONT", "BNB"]'
+ 
+# ticker
+
+./tickerRequest.sh start -d 600 -c fetch_ticker -s '["USD", "EUR", "BTC", "ETH", \
+"XRP", "IOTA", "NEO", "LTC", "BCH", "ADA", "XLM", "TRX", "XEM", "VEN", "ONT", "BNB"]'
+
+# trades fetch_trades
+# needs additonal args since = timestamp (Unix Timestamp in milliseconds)
+# since should be possible with -1m
+
+# OHLCV 
+# fetch_ohlcv 
+# needs a check has['fetchOHLCV'] = True
+# needs additonal args timeframe = '1m', since = timestamp
+# since should be possible with -1m
+
+# zookeeper for kafka-manager 
+# zookeeper-1:2181
+
+# limit mongo memory usage!
+
+# create connector
+./connectCli.sh create kafka-connect-file < connect-file.properties
+./connectCli.sh create kafka-connect-mongodb < connect-mongodb.properties
+
+# save connector
+./connectCli.sh get kafka-connect-file > connect-file.properties
+./connectCli.sh get kafka-connect-mongodb > connect-mongodb.properties
+
+# remove connector
+./connectCli.sh rm kafka-connect-file
+./connectCli.sh rm kafka-connect-mongodb
+
+# force save ticker and restart 
+./tickerRequest.sh saveconfig config.json \
+&& ./etcdctl.sh del CryptoDataAnalyzer/TickerRequestProducer/config/ticker CryptoDataAnalyzer/TickerRequestProducer/config/tickes \
+&& docker-compose restart tickerRequestProducer-1 tickerRequestConsumer-1 \
+&& ./tickerRequest.sh loadconfig config.json
+
+# restart
+./tickerRequest.sh saveconfig config.json \
+&& docker-compose restart tickerRequestProducer-1 tickerRequestConsumer-1
+
+# update
+./tickerRequest.sh saveconfig config.json \
+&& docker-compose up -d tickerRequestProducer-1 tickerRequestConsumer-1
+
+# generate blacklist
+./tickerRequest.sh runquery data_quality -f blacklist.json
+# generate blacklist and send it
+./tickerRequest.sh runquery data_quality -f blacklist.json -c blacklist
+
+# update ticker
+./tickerRequest.sh start -u -d 86400 -c load_markets -a '{"reload":True}'
+./tickerRequest.sh start -u -d 30 -c fetch_order_book -s '["USD", "EUR", "BTC", "ETH", \
+"XRP", "IOTA", "NEO", "LTC", "BCH", "ADA", "XLM", "TRX", "XEM", "VEN", "ONT", "BNB"]'
+./tickerRequest.sh start -u -d 600 -c fetch_ticker -s '["USD", "EUR", "BTC", "ETH", \
+"XRP", "IOTA", "NEO", "LTC", "BCH", "ADA", "XLM", "TRX", "XEM", "VEN", "ONT", "BNB"]'
+
+
+
+# remove all ticker configs from etcd
+./etcdctl.sh del CryptoDataAnalyzer/TickerRequestProducer/config/ticker CryptoDataAnalyzer/TickerRequestProducer/config/tickes
+./etcdctl.sh del CryptoDataAnalyzer/TickerRequestProducer/config/blacklist CryptoDataAnalyzer/TickerRequestProducer/config/blacklisu
+
+
+# read all etcd config
+./etcdctl.sh get C D
+
+# compact etcd
+# get current revision
+rev=$(./etcdctl.sh endpoint status --write-out="json" | egrep -o '"revision":[0-9]*' | egrep -o '[0-9].*')
+# compact away all old revisions
+./etcdctl.sh compact $rev
+# defragment away excessive space
+./etcdctl.sh defrag
+# disarm alarm
+./etcdctl.sh alarm disarm
+
+# status
+./etcdctl.sh --write-out=table endpoint status
+# alarm list
+./etcdctl.sh alarm list
+
+# watch 
+while [ 1 ]; do  ./etcdctl.sh --write-out=table endpoint status && sleep 5 || break; done
